@@ -1,1 +1,2550 @@
-<!-- Updated enemy spawning, tree spawn rates, and optimization for drop rendering -->\n\n<script>\n// Enemy spawning fix\nfunction fixEnemySpawning() {\n    // Code to fix enemy spawning\n}\n\n// Increase tree spawn rates\nfunction increaseTreeSpawnRates() {\n    // Code to increase tree spawn rates\n}\n\n// Optimize drop rendering\nfunction optimizeDropRendering() {\n    // Code to optimize drop rendering\n}\n\n// Call functions\nfixEnemySpawning();\nincreaseTreeSpawnRates();\noptimizeDropRendering();\n</script>
+<!doctype html>
+<html lang="en">
+<head>
+<link rel="icon" type="image/png" sizes="32x32" href="image.png">
+<link rel="icon" type="image/png" sizes="16x16" href="image.png">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>Eldershard: Wild Realms</title>
+<style>
+  :root{
+    --bg:#071018;
+    --panel:rgba(8,14,22,.86);
+    --panel2:rgba(14,22,34,.96);
+    --text:#eaf4ff;
+    --muted:#a8bdd4;
+    --accent:#6fe3ff;
+    --danger:#ff6b6b;
+    --good:#7cff9e;
+    --warn:#ffd166;
+    --radius:18px;
+    --shadow:0 18px 60px rgba(0,0,0,.45);
+  }
+  html,body{
+    margin:0;
+    width:100%;
+    height:100%;
+    overflow:hidden;
+    background:radial-gradient(circle at 50% 0%, #11263a 0%, #081019 55%, #04070c 100%);
+    color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    user-select:none;
+    touch-action:none;
+  }
+  canvas{
+    display:block;
+    width:100vw;
+    height:100vh;
+    image-rendering:pixelated;
+    cursor:crosshair;
+  }
+  .hud{
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+  }
+  .topbar{
+    position:absolute;
+    left:16px;
+    top:14px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    min-width:300px;
+  }
+  .chiprow{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{
+    background:rgba(10,18,28,.72);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:999px;
+    padding:6px 10px;
+    font-size:12px;
+    color:var(--muted);
+    backdrop-filter:blur(10px);
+    box-shadow:var(--shadow);
+  }
+  .barlabel{
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:4px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .barwrap{
+    background:rgba(10,18,28,.78);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:999px;
+    overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  .bar{ height:14px; width:100%; background:linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,.02)); }
+  .fill{ height:100%; width:100%; border-radius:999px; }
+  .hud-right{
+    position:absolute;
+    right:16px;
+    top:14px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    align-items:flex-end;
+  }
+  .mini{
+    width:164px;
+    height:164px;
+    border-radius:18px;
+    background:rgba(10,18,28,.68);
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:var(--shadow);
+    overflow:hidden;
+  }
+  .mini canvas{
+    width:100%;
+    height:100%;
+    cursor:default;
+  }
+  .bottom{
+    position:absolute;
+    left:50%;
+    transform:translateX(-50%);
+    bottom:16px;
+    width:min(980px, calc(100vw - 22px));
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    align-items:center;
+  }
+  .hotbar{
+    pointer-events:auto;
+    display:flex;
+    gap:8px;
+    background:rgba(8,14,22,.76);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:22px;
+    padding:10px;
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(12px);
+  }
+  .slot{
+    width:56px;
+    height:56px;
+    border-radius:14px;
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01));
+    border:1px solid rgba(255,255,255,.08);
+    display:flex;
+    flex-direction:column;
+    justify-content:space-between;
+    padding:6px;
+    box-sizing:border-box;
+    position:relative;
+    transition:transform .08s ease, border-color .08s ease, box-shadow .08s ease;
+    cursor:pointer;
+  }
+  .slot:hover{
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  }
+  .slot.active{
+    transform:translateY(-3px);
+    border-color:rgba(111,227,255,.9);
+    box-shadow:0 0 0 2px rgba(111,227,255,.15) inset, 0 0 24px rgba(111,227,255,.18);
+  }
+  .slot .num{
+    font-size:11px;
+    color:rgba(255,255,255,.55);
+  }
+  .slot .name{
+    font-size:10px;
+    line-height:1.05;
+    color:var(--text);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .slot .count{
+    position:absolute;
+    right:6px;
+    bottom:5px;
+    font-size:11px;
+    color:var(--warn);
+  }
+  .help{
+    pointer-events:none;
+    font-size:12px;
+    color:rgba(233,245,255,.74);
+    text-shadow:0 2px 10px rgba(0,0,0,.45);
+    text-align:center;
+    max-width:860px;
+    line-height:1.45;
+  }
+  .panel{
+    pointer-events:auto;
+    position:fixed;
+    inset:0;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background:rgba(0,0,0,.48);
+    backdrop-filter:blur(6px);
+  }
+  .panel.open{ display:flex; }
+  .card{
+    width:min(950px, calc(100vw - 24px));
+    max-height:min(86vh, 980px);
+    overflow:auto;
+    background:linear-gradient(180deg, rgba(14,22,34,.98), rgba(10,16,24,.98));
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:24px;
+    box-shadow:0 30px 100px rgba(0,0,0,.55);
+    padding:20px;
+  }
+  .card h1,.card h2,.card h3,.card p{ margin:0 0 10px 0; }
+  .card h1{ font-size:34px; letter-spacing:.02em; }
+  .card h2{ font-size:20px; margin-top:10px; }
+  .card p, .card li{
+    color:var(--muted);
+    line-height:1.5;
+    font-size:14px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:12px;
+    margin-top:14px;
+  }
+  .box{
+    background:rgba(255,255,255,.03);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:18px;
+    padding:14px;
+  }
+  .btnrow{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:14px;
+  }
+  button{
+    pointer-events:auto;
+    border:none;
+    border-radius:14px;
+    padding:12px 16px;
+    background:linear-gradient(180deg, #243a54, #162434);
+    color:var(--text);
+    font-weight:700;
+    cursor:pointer;
+    box-shadow:var(--shadow);
+  }
+  button:hover{ filter:brightness(1.08); }
+  button.alt{ background:linear-gradient(180deg, #4c3a1b, #2f2411); }
+  button.good{ background:linear-gradient(180deg, #1d5c43, #123627); }
+  button.danger{ background:linear-gradient(180deg, #61282a, #381619); }
+  .small{ font-size:12px; color:var(--muted); }
+  .list{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:8px;
+  }
+  .entry{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    background:rgba(255,255,255,.03);
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:14px;
+    padding:10px 12px;
+    cursor:pointer;
+    transition:background .2s ease;
+  }
+  .entry:hover{
+    background:rgba(255,255,255,.06);
+  }
+  .entry strong{ font-size:14px; }
+  .entry span{ font-size:12px; color:var(--muted); }
+  .kbd{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:24px;
+    height:24px;
+    padding:0 6px;
+    border-radius:7px;
+    border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.05);
+    color:var(--text);
+    font-size:12px;
+    margin:0 2px;
+  }
+  .toast{
+    position:fixed;
+    left:50%;
+    transform:translateX(-50%);
+    top:18px;
+    background:rgba(12,18,27,.9);
+    color:var(--text);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:999px;
+    padding:10px 14px;
+    font-size:13px;
+    box-shadow:var(--shadow);
+    pointer-events:none;
+    opacity:0;
+    transition:opacity .2s ease, transform .2s ease;
+    z-index:9999;
+  }
+  .toast.show{
+    opacity:1;
+    transform:translateX(-50%) translateY(6px);
+  }
+  .crosshair{
+    position:fixed;
+    left:50%;
+    top:50%;
+    width:12px;
+    height:12px;
+    transform:translate(-50%,-50%);
+    pointer-events:none;
+    opacity:.9;
+    filter:drop-shadow(0 0 8px rgba(111,227,255,.4));
+  }
+  .crosshair:before,.crosshair:after{
+    content:"";
+    position:absolute;
+    left:50%;
+    top:50%;
+    background:rgba(235,247,255,.95);
+    transform:translate(-50%,-50%);
+  }
+  .crosshair:before{ width:12px; height:2px; border-radius:999px; }
+  .crosshair:after{ width:2px; height:12px; border-radius:999px; }
+  .reticle{
+    position:fixed;
+    width:18px;
+    height:18px;
+    border:2px solid rgba(111,227,255,.75);
+    border-radius:50%;
+    pointer-events:none;
+    transform:translate(-50%,-50%);
+    display:none;
+    box-shadow:0 0 0 2px rgba(111,227,255,.12), 0 0 16px rgba(111,227,255,.16);
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="chiprow">
+      <div class="chip" id="zoneChip">Greenwood Forest</div>
+      <div class="chip" id="timeChip">Day 1 • Morning</div>
+      <div class="chip" id="coordsChip">0, 0</div>
+      <div class="chip" id="modeChip">Explore</div>
+      <div class="chip" id="dimensionChip">🌍 Realm</div>
+    </div>
+
+    <div>
+      <div class="barlabel">Health</div>
+      <div class="barwrap"><div class="bar"><div class="fill" id="healthFill" style="background:linear-gradient(90deg,#ff4f6d,#ff7f93)"></div></div></div>
+    </div>
+    <div>
+      <div class="barlabel">Hunger</div>
+      <div class="barwrap"><div class="bar"><div class="fill" id="hungerFill" style="background:linear-gradient(90deg,#ffb347,#ffd166)"></div></div></div>
+    </div>
+    <div>
+      <div class="barlabel">Stamina</div>
+      <div class="barwrap"><div class="bar"><div class="fill" id="staminaFill" style="background:linear-gradient(90deg,#79e2ff,#89f3c7)"></div></div></div>
+    </div>
+    <div>
+      <div class="barlabel">Mana</div>
+      <div class="barwrap"><div class="bar"><div class="fill" id="manaFill" style="background:linear-gradient(90deg,#8a7dff,#5fd4ff)"></div></div></div>
+    </div>
+  </div>
+
+  <div class="hud-right">
+    <div class="mini"><canvas id="map"></canvas></div>
+    <div class="chip" id="tooltipChip">Tap to attack / gather</div>
+  </div>
+
+  <div class="bottom">
+    <div class="hotbar" id="hotbar"></div>
+    <div class="help" id="helpLine">
+      Move with <span class="kbd">WASD</span> or arrows. <span class="kbd">1-8</span> select hotbar. <span class="kbd">E</span> inventory. <span class="kbd">C</span> crafting. <span class="kbd">B</span> build mode. <span class="kbd">Q</span> use selected item. <span class="kbd">Shift</span> sprint. <span class="kbd">R</span> rest at campfire. Tap screen to attack/gather.
+    </div>
+  </div>
+</div>
+
+<div class="crosshair"></div>
+<div class="reticle" id="reticle"></div>
+<div class="toast" id="toast"></div>
+
+<div class="panel open" id="menuPanel">
+  <div class="card">
+    <h1>Eldershard: Wild Realms</h1>
+    <p>A survival fantasy sandbox where you gather, craft, build, fight, and explore a broken magical world. Find the portal to the Stone City.</p>
+    <div class="grid">
+      <div class="box">
+        <h2>Core Loop</h2>
+        <p>Explore biomes, collect wood and stone, hunt, craft gear, build shelter, learn magic, and survive the night.</p>
+      </div>
+      <div class="box">
+        <h2>World</h2>
+        <p>Procedural biomes, villages, hidden shrines, ruins, resource nodes, roaming enemies, and a full day-night cycle.</p>
+      </div>
+      <div class="box">
+        <h2>Dimensions</h2>
+        <p>Find portals to alternate dimensions. The Stone City holds dangerous treasures and powerful foes.</p>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button class="good" id="newGameBtn">New Game</button>
+      <button id="continueBtn">Continue</button>
+      <button class="alt" id="howBtn">How To Play</button>
+      <button class="danger" id="wipeBtn">Delete Save</button>
+    </div>
+    <p class="small" id="saveInfo">No save found yet.</p>
+  </div>
+</div>
+
+<div class="panel" id="inventoryPanel">
+  <div class="card">
+    <h2>Inventory</h2>
+    <div class="grid" id="inventoryGrid"></div>
+    <h2>Equipment</h2>
+    <div class="grid" id="equipmentGrid"></div>
+    <div class="btnrow">
+      <button id="closeInventoryBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="craftPanel">
+  <div class="card">
+    <h2>Crafting</h2>
+    <p>Craft from your inventory. Some recipes require a nearby station.</p>
+    <div class="list" id="craftList"></div>
+    <div class="btnrow">
+      <button id="closeCraftBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="gameOverPanel">
+  <div class="card">
+    <h1>Game Over</h1>
+    <p>You fell in the wilds. The world remembers your steps.</p>
+    <div class="btnrow">
+      <button class="good" id="respawnBtn">Respawn</button>
+      <button id="backMenuBtn">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<div class="panel" id="helpPanel">
+  <div class="card">
+    <h2>How to Play</h2>
+    <div class="grid">
+      <div class="box">
+        <h3>Movement</h3>
+        <p><span class="kbd">WASD</span> or arrows. Hold <span class="kbd">Shift</span> to sprint.</p>
+      </div>
+      <div class="box">
+        <h3>Actions</h3>
+        <p>Tap/click to attack or gather. Tap/right-click to place buildings in build mode.</p>
+      </div>
+      <div class="box">
+        <h3>Menus</h3>
+        <p><span class="kbd">E</span> inventory, <span class="kbd">C</span> crafting, <span class="kbd">B</span> build mode, <span class="kbd">Esc</span> pause.</p>
+      </div>
+      <div class="box">
+        <h3>Food & Items</h3>
+        <p>Select a food item and press <span class="kbd">Q</span> to eat. Eating restores hunger and health.</p>
+      </div>
+      <div class="box">
+        <h3>Magic</h3>
+        <p>Select the wand and press <span class="kbd">Q</span> to cast firebolt.</p>
+      </div>
+      <div class="box">
+        <h3>Dimensions</h3>
+        <p>Find the glowing portal to enter the Stone City. Beware - enemies are much stronger!</p>
+      </div>
+    </div>
+    <div class="btnrow">
+      <button id="closeHelpBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const mapCanvas = document.getElementById("map");
+const mapCtx = mapCanvas.getContext("2d");
+
+const ui = {
+  menuPanel: document.getElementById("menuPanel"),
+  inventoryPanel: document.getElementById("inventoryPanel"),
+  craftPanel: document.getElementById("craftPanel"),
+  gameOverPanel: document.getElementById("gameOverPanel"),
+  helpPanel: document.getElementById("helpPanel"),
+  hotbar: document.getElementById("hotbar"),
+  inventoryGrid: document.getElementById("inventoryGrid"),
+  equipmentGrid: document.getElementById("equipmentGrid"),
+  craftList: document.getElementById("craftList"),
+  toast: document.getElementById("toast"),
+  healthFill: document.getElementById("healthFill"),
+  hungerFill: document.getElementById("hungerFill"),
+  staminaFill: document.getElementById("staminaFill"),
+  manaFill: document.getElementById("manaFill"),
+  zoneChip: document.getElementById("zoneChip"),
+  timeChip: document.getElementById("timeChip"),
+  coordsChip: document.getElementById("coordsChip"),
+  modeChip: document.getElementById("modeChip"),
+  dimensionChip: document.getElementById("dimensionChip"),
+  tooltipChip: document.getElementById("tooltipChip"),
+  saveInfo: document.getElementById("saveInfo"),
+  reticle: document.getElementById("reticle"),
+};
+
+const STORAGE_KEY = "eldershard_wild_realms_save_v5";
+const TILE = 32;
+const VIEW_PAD = 4;
+const SAVE_VERSION = 5;
+
+let W = 0, H = 0, DPR = 1;
+let running = false;
+let gameState = "menu";
+let frame = 0;
+let last = performance.now();
+let toastTimer = 0;
+
+const keys = Object.create(null);
+const mouse = { x: 0, y: 0, worldX: 0, worldY: 0 };
+const touch = { x: 0, y: 0, worldX: 0, worldY: 0, active: false };
+
+const SEED = Math.floor(Math.random() * 1e9);
+
+const tileTypes = {
+  grass:  { color:"#355c3f", top:"#436d4f" },
+  forest:  { color:"#244734", top:"#336147" },
+  plains:  { color:"#4f7346", top:"#618757" },
+  sand:    { color:"#8e7d4c", top:"#a49263" },
+  snow:    { color:"#d6e7f2", top:"#edf7ff" },
+  swamp:   { color:"#374d3d", top:"#425c48" },
+  stone:   { color:"#585f69", top:"#6d7580" },
+  ash:     { color:"#483844", top:"#5a4656" },
+  water:   { color:"#1f4d78", top:"#276089" },
+  road:    { color:"#7a6b57", top:"#8f7d67" },
+  darkstone: { color:"#3a3f4a", top:"#4a5060" },
+};
+
+const itemDefs = {
+  wood:{name:"Wood",icon:"🪵",type:"resource"},
+  stone:{name:"Stone",icon:"🪨",type:"resource"},
+  fiber:{name:"Fiber",icon:"🧵",type:"resource"},
+  herb:{name:"Herb",icon:"🌿",type:"food"},
+  berry:{name:"Berry",icon:"🫐",type:"food"},
+  meat:{name:"Meat",icon:"🍖",type:"food"},
+  crystal:{name:"Crystal",icon:"💎",type:"resource"},
+  ore:{name:"Ore",icon:"⛏️",type:"resource"},
+  plank:{name:"Plank",icon:"🪵",type:"resource"},
+  rope:{name:"Rope",icon:"🪢",type:"resource"},
+  bandage:{name:"Bandage",icon:"🩹",type:"consumable"},
+  potion:{name:"Potion",icon:"🧪",type:"consumable"},
+  arrow:{name:"Arrow",icon:"➶",type:"resource"},
+
+  axe:{name:"Stone Axe",icon:"🪓",type:"tool"},
+  pickaxe:{name:"Stone Pickaxe",icon:"⛏️",type:"tool"},
+  spear:{name:"Spear",icon:"🔱",type:"weapon"},
+  bow:{name:"Bow",icon:"🏹",type:"weapon"},
+  wand:{name:"Mage Wand",icon:"✨",type:"weapon"},
+
+  torch:{name:"Torch",icon:"🔥",type:"placeable"},
+  campfire:{name:"Campfire",icon:"🔥",type:"placeable"},
+  wall:{name:"Wood Wall",icon:"🧱",type:"placeable"},
+  floor:{name:"Floor",icon:"⬛",type:"placeable"},
+  chest:{name:"Chest",icon:"📦",type:"placeable"},
+  altar:{name:"Rune Altar",icon:"🜁",type:"placeable"},
+};
+
+const craftRecipes = [
+  { id:"plank", name:"Plank", out:4, req:{ wood:2 } },
+  { id:"rope", name:"Rope", out:2, req:{ fiber:3 } },
+  { id:"bandage", name:"Bandage", out:1, req:{ fiber:2, herb:1 } },
+  { id:"potion", name:"Potion", out:1, req:{ herb:2, crystal:1 } },
+  { id:"arrow", name:"Arrow", out:8, req:{ wood:1, stone:1 } },
+  { id:"axe", name:"Stone Axe", out:1, req:{ wood:3, stone:2 } },
+  { id:"pickaxe", name:"Stone Pickaxe", out:1, req:{ wood:3, stone:3 } },
+  { id:"spear", name:"Spear", out:1, req:{ wood:3, stone:2, fiber:1 } },
+  { id:"bow", name:"Bow", out:1, req:{ wood:4, fiber:3, rope:1 } },
+  { id:"torch", name:"Torch", out:4, req:{ wood:1, fiber:1 } },
+  { id:"campfire", name:"Campfire", out:1, req:{ wood:8, stone:4 } },
+  { id:"wall", name:"Wood Wall", out:4, req:{ plank:6, rope:1 } },
+  { id:"floor", name:"Floor", out:4, req:{ plank:4 } },
+  { id:"chest", name:"Chest", out:1, req:{ wood:8, plank:4 } },
+  { id:"altar", name:"Rune Altar", out:1, req:{ stone:12, crystal:3 } },
+  { id:"wand", name:"Mage Wand", out:1, req:{ wood:3, crystal:4, rope:1 } },
+];
+
+const buildableSet = new Set(["torch","campfire","wall","floor","chest","altar"]);
+const consumableSet = new Set(["bandage","potion","herb","berry","meat"]);
+const foodSet = new Set(["herb","berry","meat"]);
+
+const worldMods = new Map();
+const dropped = [];
+const enemies = [];
+const particles = [];
+const projectiles = [];
+
+const player = {
+  x:0, y:0,
+  r:12,
+  speed:2.2,
+  sprint:3.6,
+  health:100, maxHealth:100,
+  hunger:100, maxHunger:100,
+  stamina:100, maxStamina:100,
+  mana:60, maxMana:60,
+  attackCd:0,
+  swing:0,
+  facing:0,
+  xp:0,
+  level:1,
+  buildMode:false,
+  buildId:"wall",
+  selected:0,
+  dimension:"realm",
+  equipment:{ weapon:"spear", tool:"axe", spell:"firebolt" },
+  inventory:{
+    wood:14, stone:10, fiber:8, herb:5, berry:6, meat:0, crystal:0, ore:0,
+    plank:0, rope:0, bandage:2, potion:0, arrow:12,
+    axe:1, pickaxe:1, spear:1, bow:0, wand:0,
+    torch:2, campfire:1, wall:0, floor:0, chest:0, altar:0,
+  },
+  hotbar:["axe","pickaxe","spear","bow","wand","torch","campfire","wall"],
+};
+
+const world = {
+  seed:SEED,
+  dayTime:0.14,
+  day:1,
+  villages: new Map(),
+  portals: new Map(),
+};
+
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function smooth(t){ return t*t*(3 - 2*t); }
+function fract(v){ return v - Math.floor(v); }
+function keyOf(x,y){ return `${x},${y}`; }
+function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+
+function hash2(x, y, seed = SEED) {
+  const n = Math.sin(x * 127.1 + y * 311.7 + seed * 0.0001) * 43758.5453123;
+  return fract(n);
+}
+
+function hash1(x, seed = SEED) {
+  const n = Math.sin(x * 127.1 + seed * 0.0001) * 43758.5453123;
+  return fract(n);
+}
+
+function valueNoise(x, y, scale = 1, seed = SEED) {
+  const fx = x / scale;
+  const fy = y / scale;
+  const x0 = Math.floor(fx), y0 = Math.floor(fy);
+  const tx = smooth(fx - x0), ty = smooth(fy - y0);
+  const a = hash2(x0, y0, seed);
+  const b = hash2(x0 + 1, y0, seed);
+  const c = hash2(x0, y0 + 1, seed);
+  const d = hash2(x0 + 1, y0 + 1, seed);
+  return lerp(lerp(a, b, tx), lerp(c, d, tx), ty);
+}
+
+function fbm(x, y, octaves = 4, baseScale = 180, seed = SEED) {
+  let value = 0;
+  let amp = 0.55;
+  let freq = 1;
+  let norm = 0;
+  for (let i = 0; i < octaves; i++) {
+    value += valueNoise(x * freq, y * freq, baseScale / freq, seed + i * 1337) * amp;
+    norm += amp;
+    amp *= 0.5;
+    freq *= 2;
+  }
+  return value / norm;
+}
+
+function getBiome(x, y) {
+  if (player.dimension === "stonecity") {
+    return "darkstone";
+  }
+  
+  const a = fbm(x + 10000, y - 3000, 4, 420, SEED + 11);
+  const b = fbm(x - 5000, y + 1000, 5, 720, SEED + 22);
+  const c = fbm(x + 8000, y + 8000, 3, 1400, SEED + 33);
+  
+  if (c > 0.84) return "ash";
+  if (b > 0.72) return "snow";
+  if (a < 0.22) return "water";
+  if (a < 0.32) return "swamp";
+  if (a < 0.42) return "sand";
+  if (a < 0.56) return "plains";
+  if (a < 0.72) return "forest";
+  return "grass";
+}
+
+function getTileBase(x, y) {
+  const biome = getBiome(x, y);
+  const n = fbm(x * 0.7, y * 0.7, 4, 110, SEED + 44);
+  const m = fbm(x * 0.5 + 300, y * 0.5 - 300, 3, 90, SEED + 55);
+
+  let type = biome;
+  let resource = null;
+
+  if (biome === "darkstone") {
+    type = "darkstone";
+    if (n > 0.82) resource = "crystalDark";
+    if (m > 0.8) resource = "oreDark";
+  } else if (biome === "water") {
+    type = "water";
+  } else if (biome === "sand") {
+    if (n > 0.82) type = "stone";
+    if (m > 0.86) resource = "crystal";
+  } else if (biome === "forest") {
+    if (n > 0.82) resource = "tree";
+    if (n > 0.73 && n < 0.77) resource = "berry";
+    if (m > 0.8) resource = "herb";
+  } else if (biome === "grass") {
+    if (n > 0.84) resource = "tree";
+    if (n > 0.74 && n < 0.79) resource = "rock";
+    if (m > 0.83) resource = "herb";
+  } else if (biome === "plains") {
+    if (n > 0.9) resource = "tree";
+    if (n > 0.82 && n < 0.88) resource = "rock";
+    if (m > 0.82) resource = "berry";
+  } else if (biome === "swamp") {
+    if (n > 0.84) resource = "reed";
+    if (m > 0.83) resource = "herb";
+    if (n > 0.71 && n < 0.75) resource = "rock";
+  } else if (biome === "snow") {
+    if (n > 0.86) resource = "pine";
+    if (m > 0.84) resource = "crystal";
+    if (n > 0.72 && n < 0.78) resource = "rock";
+  } else if (biome === "ash") {
+    if (n > 0.83) resource = "crystal";
+    if (n > 0.73 && n < 0.79) resource = "rock";
+  }
+
+  const road = Math.abs(fbm(x - 1500, y + 1800, 2, 500, SEED + 99) - 0.5);
+  if (road < 0.03 && biome !== "water" && biome !== "ash" && biome !== "darkstone") type = "road";
+
+  const ruins = fbm(x + 2222, y + 4444, 3, 260, SEED + 77);
+  if (ruins > 0.83 && biome !== "water" && biome !== "darkstone") {
+    if (resource === null && n > 0.65) resource = "ruin";
+    if (n > 0.62 && n < 0.66) type = "stone";
+  }
+
+  return { type, resource, biome };
+}
+
+function getCellState(x, y) {
+  return worldMods.get(keyOf(x, y)) || null;
+}
+
+function isBlocked(x, y) {
+  const cell = getCellState(x, y);
+  if (cell && cell.kind === "built") return cell.type === "wall";
+  const t = getTileBase(x, y);
+  return t.type === "water";
+}
+
+function getZoneName(x, y) {
+  if (player.dimension === "stonecity") return "Stone City";
+  const biome = getBiome(x, y);
+  switch (biome) {
+    case "forest": return "Greenwood Forest";
+    case "grass": return "Sunreach Meadows";
+    case "plains": return "Sunreach Plains";
+    case "sand": return "Ember Dunes";
+    case "snow": return "Frostmere Tundra";
+    case "swamp": return "Moonfen Marsh";
+    case "ash": return "Ashen Wilds";
+    case "water": return "Shorelands";
+    case "darkstone": return "Stone City";
+    default: return "Wilderness";
+  }
+}
+
+function toast(msg, t = 1600) {
+  ui.toast.textContent = msg;
+  ui.toast.classList.add("show");
+  toastTimer = t;
+}
+
+function addItem(id, amount = 1) {
+  if (!(id in player.inventory)) player.inventory[id] = 0;
+  player.inventory[id] += amount;
+  if (player.inventory[id] < 0) player.inventory[id] = 0;
+}
+
+function hasItems(req, mult = 1) {
+  for (const [id, n] of Object.entries(req)) {
+    if ((player.inventory[id] || 0) < n * mult) return false;
+  }
+  return true;
+}
+
+function spendItems(req, mult = 1) {
+  if (!hasItems(req, mult)) return false;
+  for (const [id, n] of Object.entries(req)) player.inventory[id] -= n * mult;
+  return true;
+}
+
+function spawnDrop(id, amount, x, y) {
+  dropped.push({
+    id, amount, x, y,
+    vx:(Math.random() - 0.5) * 2,
+    vy:(Math.random() - 0.5) * 2,
+    age:0,
+    ttl:1200,
+  });
+}
+
+function addLoot(type, x, y) {
+  const table = {
+    tree: [["wood", 2, 5], ["fiber", 0, 2]],
+    pine: [["wood", 2, 6], ["fiber", 0, 2]],
+    rock: [["stone", 2, 4], ["ore", 0, 1]],
+    crystal: [["crystal", 1, 3]],
+    crystalDark: [["crystal", 3, 5]],
+    oreDark: [["ore", 3, 4]],
+    herb: [["herb", 1, 3]],
+    berry: [["berry", 1, 3]],
+    reed: [["fiber", 1, 2]],
+    ruin: [["stone", 1, 3], ["crystal", 0, 1]],
+  };
+  const list = table[type];
+  if (!list) return;
+  for (const [id, min, max] of list) {
+    const n = Math.floor(lerp(min, max + 1, hash2(Math.floor(x), Math.floor(y) + id.length)));
+    if (n > 0) spawnDrop(id, n, x, y);
+  }
+}
+
+function spawnParticles(x, y, count, color) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx:(Math.random() - 0.5) * 3.2,
+      vy:(Math.random() - 0.5) * 3.2,
+      life:18 + Math.random() * 20,
+      color,
+      size:2 + Math.random() * 3,
+    });
+  }
+}
+
+function generateVillages() {
+  if (player.dimension !== "realm") return;
+  
+  const villageScale = 4000;
+  const tx = Math.floor(player.x / villageScale);
+  const ty = Math.floor(player.y / villageScale);
+  
+  for (let vx = tx - 1; vx <= tx + 1; vx++) {
+    for (let vy = ty - 1; vy <= ty + 1; vy++) {
+      const key = `v_${vx},${vy}`;
+      if (!world.villages.has(key)) {
+        const centerX = vx * villageScale + 1000 + hash1(vx * 73 + vy * 41, SEED + 5555) * 2000;
+        const centerY = vy * villageScale + 1000 + hash1(vx * 31 + vy * 67, SEED + 6666) * 2000;
+        const biome = getBiome(centerX, centerY);
+        
+        if (biome !== "water" && biome !== "ash") {
+          world.villages.set(key, { x: centerX, y: centerY, biome });
+          
+          for (let i = 0; i < 8; i++) {
+            const angle = (i / 8) * Math.PI * 2;
+            const dist = 100 + Math.random() * 150;
+            const hx = Math.floor((centerX + Math.cos(angle) * dist) / TILE);
+            const hy = Math.floor((centerY + Math.sin(angle) * dist) / TILE);
+            
+            if (!isBlocked(hx, hy) && !worldMods.has(keyOf(hx, hy))) {
+              worldMods.set(keyOf(hx, hy), { kind: "built", type: "wall", hp: 100 });
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function generatePortals() {
+  if (player.dimension !== "realm") return;
+  
+  const portalScale = 6000;
+  const tx = Math.floor(player.x / portalScale);
+  const ty = Math.floor(player.y / portalScale);
+  
+  for (let vx = tx - 1; vx <= tx + 1; vx++) {
+    for (let vy = ty - 1; vy <= ty + 1; vy++) {
+      const key = `p_${vx},${vy}`;
+      if (!world.portals.has(key)) {
+        const centerX = vx * portalScale + 2000 + hash1(vx * 89 + vy * 53, SEED + 7777) * 2000;
+        const centerY = vy * portalScale + 2000 + hash1(vx * 47 + vy * 79, SEED + 8888) * 2000;
+        const biome = getBiome(centerX, centerY);
+        
+        if (biome !== "water" && biome !== "ash") {
+          const px = Math.floor(centerX / TILE);
+          const py = Math.floor(centerY / TILE);
+          
+          if (!isBlocked(px, py) && !worldMods.has(keyOf(px, py))) {
+            world.portals.set(key, { x: centerX, y: centerY, biome });
+            worldMods.set(keyOf(px, py), { kind: "portal", hp: 100 });
+          }
+        }
+      }
+    }
+  }
+}
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  canvas.width = Math.floor(W * DPR);
+  canvas.height = Math.floor(H * DPR);
+  canvas.style.width = W + "px";
+  canvas.style.height = H + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  mapCanvas.width = 164 * DPR;
+  mapCanvas.height = 164 * DPR;
+  mapCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener("resize", resize);
+
+function worldToScreen(wx, wy) {
+  return { x: wx - player.x + W / 2, y: wy - player.y + H / 2 };
+}
+function screenToWorld(sx, sy) {
+  return { x: player.x + (sx - W / 2), y: player.y + (sy - H / 2) };
+}
+function pixelToTile(px, py) {
+  return { x: Math.floor(px / TILE), y: Math.floor(py / TILE) };
+}
+
+function canStandAt(px, py) {
+  const r = player.r;
+  const samples = [
+    [px - r, py - r], [px + r, py - r], [px - r, py + r], [px + r, py + r],
+    [px, py - r], [px, py + r], [px - r, py], [px + r, py]
+  ];
+  for (const [sx, sy] of samples) {
+    const t = pixelToTile(sx, sy);
+    if (isBlocked(t.x, t.y)) return false;
+  }
+  return true;
+}
+
+function movePlayer(dx, dy) {
+  const len = Math.hypot(dx, dy);
+  if (!len) return;
+  const nx = dx / len, ny = dy / len;
+  const step = 3.2;
+  const nextX = player.x + nx * step;
+  const nextY = player.y + ny * step;
+  if (canStandAt(nextX, player.y)) player.x = nextX;
+  if (canStandAt(player.x, nextY)) player.y = nextY;
+}
+
+function damagePlayer(amount, source = "enemy") {
+  player.health -= amount;
+  spawnParticles(player.x, player.y, 8, "#ff7b7b");
+  toast(`${source} hits you for ${amount}.`);
+  if (player.health <= 0) {
+    player.health = 0;
+    die();
+  }
+}
+
+function die() {
+  gameState = "gameover";
+  running = false;
+  ui.gameOverPanel.classList.add("open");
+}
+
+function respawn() {
+  player.x = 0;
+  player.y = 0;
+  player.dimension = "realm";
+  player.health = player.maxHealth;
+  player.hunger = 100;
+  player.stamina = 100;
+  player.mana = player.maxMana;
+  enemies.length = 0;
+  dropped.length = 0;
+  projectiles.length = 0;
+  particles.length = 0;
+  gameState = "play";
+  ui.gameOverPanel.classList.remove("open");
+  ui.menuPanel.classList.remove("open");
+  running = true;
+  toast("You awaken at the edge of the wilds.");
+}
+
+function saveGame() {
+  const save = {
+    version:SAVE_VERSION,
+    seed:world.seed,
+    dayTime:world.dayTime,
+    day:world.day,
+    player:{
+      x:player.x, y:player.y,
+      dimension:player.dimension,
+      health:player.health, maxHealth:player.maxHealth,
+      hunger:player.hunger, maxHunger:player.maxHunger,
+      stamina:player.stamina, maxStamina:player.maxStamina,
+      mana:player.mana, maxMana:player.maxMana,
+      xp:player.xp, level:player.level,
+      inventory:player.inventory,
+      hotbar:player.hotbar,
+      equipment:player.equipment,
+      buildMode:player.buildMode,
+      buildId:player.buildId,
+      selected:player.selected,
+    },
+    worldMods:Array.from(worldMods.entries()),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(save));
+  ui.saveInfo.textContent = `Saved on day ${world.day}.`;
+}
+
+function loadGame() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return false;
+  try {
+    const save = JSON.parse(raw);
+    if (!save || save.version !== SAVE_VERSION) return false;
+    world.seed = save.seed ?? SEED;
+    world.dayTime = save.dayTime ?? 0.14;
+    world.day = save.day ?? 1;
+    Object.assign(player, save.player || {});
+    player.inventory = save.player?.inventory || player.inventory;
+    player.hotbar = save.player?.hotbar || player.hotbar;
+    player.equipment = save.player?.equipment || player.equipment;
+    player.selected = save.player?.selected || 0;
+    player.dimension = save.player?.dimension || "realm";
+    worldMods.clear();
+    for (const [k, v] of (save.worldMods || [])) worldMods.set(k, v);
+    ui.saveInfo.textContent = `Save found: day ${world.day}, level ${player.level}.`;
+    return true;
+  } catch (err) {
+    console.warn(err);
+    return false;
+  }
+}
+
+function wipeSave() {
+  localStorage.removeItem(STORAGE_KEY);
+  worldMods.clear();
+  ui.saveInfo.textContent = "No save found yet.";
+  toast("Save deleted.");
+}
+
+function setMode(mode) {
+  gameState = mode;
+  ui.inventoryPanel.classList.toggle("open", mode === "inventory");
+  ui.craftPanel.classList.toggle("open", mode === "craft");
+  ui.helpPanel.classList.toggle("open", mode === "help");
+  if (mode === "play") {
+    ui.menuPanel.classList.remove("open");
+    ui.gameOverPanel.classList.remove("open");
+    running = true;
+  } else if (mode === "pause") {
+    running = false;
+  } else if (mode === "inventory" || mode === "craft" || mode === "help") {
+    running = false;
+  }
+}
+
+function openMenu() {
+  ui.menuPanel.classList.add("open");
+  ui.helpPanel.classList.remove("open");
+  gameState = "menu";
+  running = false;
+  ui.saveInfo.textContent = localStorage.getItem(STORAGE_KEY) ? "Save found on this device." : "No save found yet.";
+}
+
+function applySelected() {
+  const slot = player.hotbar[player.selected];
+  if (!slot) return;
+
+  if (buildableSet.has(slot)) {
+    player.buildId = slot;
+  } else {
+    player.equipment.weapon = slot;
+    if (slot === "axe" || slot === "pickaxe") player.equipment.tool = slot;
+    if (slot === "wand") player.equipment.spell = "firebolt";
+  }
+
+  updateTooltip();
+}
+
+function updateTooltip() {
+  const slot = player.hotbar[player.selected];
+  if (!slot) {
+    ui.tooltipChip.textContent = "Empty slot";
+    return;
+  }
+  
+  if (player.buildMode) {
+    ui.tooltipChip.textContent = `Build mode: tap to place ${itemDefs[player.buildId]?.name || player.buildId}.`;
+  } else if (foodSet.has(slot)) {
+    ui.tooltipChip.textContent = `${itemDefs[slot]?.name || slot}: press Q to eat.`;
+  } else if (slot === "bandage") {
+    ui.tooltipChip.textContent = "Bandage: press Q to use.";
+  } else if (slot === "potion") {
+    ui.tooltipChip.textContent = "Potion: press Q to drink.";
+  } else if (slot === "wand") {
+    ui.tooltipChip.textContent = "Wand: press Q or tap to cast firebolt.";
+  } else if (buildableSet.has(slot)) {
+    ui.tooltipChip.textContent = `${itemDefs[slot]?.name || slot}: press B to place.`;
+  } else {
+    ui.tooltipChip.textContent = `${itemDefs[slot]?.name || slot}: tap to attack or gather.`;
+  }
+}
+
+function updateHotbar() {
+  ui.hotbar.innerHTML = "";
+  player.hotbar.forEach((id, i) => {
+    const def = itemDefs[id] || { name:id, icon:"■" };
+    const count = player.inventory[id] || 0;
+    const div = document.createElement("div");
+    div.className = "slot" + (player.selected === i ? " active" : "");
+    div.innerHTML = `
+      <div class="num">${i + 1}</div>
+      <div style="font-size:18px;line-height:1">${def.icon}</div>
+      <div class="name">${def.name}</div>
+      <div class="count">${count}</div>
+    `;
+    div.addEventListener("click", () => {
+      player.selected = i;
+      applySelected();
+      updateHotbar();
+    });
+    ui.hotbar.appendChild(div);
+  });
+  ui.modeChip.textContent = player.buildMode
+    ? `Build: ${itemDefs[player.buildId]?.name || player.buildId}`
+    : `Use: ${itemDefs[player.hotbar[player.selected]]?.name || player.hotbar[player.selected]}`;
+}
+
+function renderInventory() {
+  ui.inventoryGrid.innerHTML = "";
+  Object.keys(player.inventory).sort().forEach(id => {
+    const count = player.inventory[id] || 0;
+    const def = itemDefs[id] || { name:id, icon:"■" };
+    const box = document.createElement("div");
+    box.className = "entry";
+    box.innerHTML = `<strong>${def.icon} ${def.name}</strong><span>${count}</span>`;
+    box.addEventListener("click", () => {
+      const currentSlot = player.hotbar[player.selected];
+      player.hotbar[player.selected] = id;
+      if (currentSlot && player.inventory[currentSlot] !== undefined) {
+        addItem(currentSlot, 1);
+      }
+      if (player.inventory[id] > 0) {
+        player.inventory[id]--;
+      }
+      applySelected();
+      updateHotbar();
+      renderInventory();
+      toast(`Switched to ${def.name}`);
+    });
+    ui.inventoryGrid.appendChild(box);
+  });
+
+  ui.equipmentGrid.innerHTML = "";
+  [
+    ["Weapon", player.equipment.weapon],
+    ["Tool", player.equipment.tool],
+    ["Spell", player.equipment.spell],
+    ["Build", player.buildId],
+  ].forEach(([label, value]) => {
+    const box = document.createElement("div");
+    box.className = "entry";
+    box.innerHTML = `<strong>${label}</strong><span>${itemDefs[value]?.name || value}</span>`;
+    ui.equipmentGrid.appendChild(box);
+  });
+}
+
+function tileHasStationNearby(station, px, py) {
+  const tx = Math.floor(px / TILE);
+  const ty = Math.floor(py / TILE);
+  for (let y = ty - 2; y <= ty + 2; y++) {
+    for (let x = tx - 2; x <= tx + 2; x++) {
+      const c = worldMods.get(keyOf(x, y));
+      if (c && c.kind === "built" && c.type === station) return true;
+    }
+  }
+  return false;
+}
+
+function renderCrafting() {
+  ui.craftList.innerHTML = "";
+  for (const recipe of craftRecipes) {
+    const can = hasItems(recipe.req);
+    const stationOk = !recipe.station || tileHasStationNearby(recipe.station, player.x, player.y);
+    const row = document.createElement("div");
+    row.className = "entry";
+    const reqText = Object.entries(recipe.req).map(([id, n]) => `${itemDefs[id]?.name || id} ×${n}`).join(", ");
+    row.innerHTML = `
+      <div>
+        <strong>${recipe.name}</strong><br>
+        <span>${reqText}${recipe.station ? ` • Station: ${recipe.station}` : ""}</span>
+      </div>
+      <button ${(can && stationOk) ? "" : "disabled"}>${(can && stationOk) ? "Craft" : "Need materials"}</button>
+    `;
+    row.querySelector("button").addEventListener("click", () => craftRecipe(recipe));
+    ui.craftList.appendChild(row);
+  }
+}
+
+function craftRecipe(recipe) {
+  if (recipe.station && !tileHasStationNearby(recipe.station, player.x, player.y)) {
+    toast(`Need a ${recipe.station} nearby.`);
+    return;
+  }
+  if (!spendItems(recipe.req)) {
+    toast("Missing materials.");
+    return;
+  }
+  addItem(recipe.id, recipe.out);
+  renderInventory();
+  renderCrafting();
+  updateHotbar();
+  toast(`Crafted ${recipe.name}.`);
+}
+
+function spawnEnemy(type, x, y) {
+  const dmgMult = player.dimension === "stonecity" ? 1.6 : 1.0;
+  const hpMult = player.dimension === "stonecity" ? 1.5 : 1.0;
+  
+  const base = {
+    slime:{ hp:18, speed:1.0, dmg:6, color:"#64ff9d", radius:12, drop:"meat" },
+    wolf:{ hp:24, speed:1.6, dmg:8, color:"#b3c7d6", radius:13, drop:"meat" },
+    goblin:{ hp:30, speed:1.3, dmg:10, color:"#a3ff6e", radius:13, drop:"stone" },
+    wraith:{ hp:44, speed:1.25, dmg:14, color:"#8b7dff", radius:15, drop:"crystal" },
+    golem:{ hp:60, speed:0.85, dmg:16, color:"#9ea4b0", radius:18, drop:"ore" },
+    archer:{ hp:26, speed:1.2, dmg:8, color:"#d4a574", radius:12, drop:"meat", ranged:true },
+    mage:{ hp:20, speed:0.9, dmg:6, color:"#a584ff", radius:11, drop:"crystal", ranged:true },
+  };
+  const s = base[type];
+  if (!s) return;
+  
+  enemies.push({
+    type, x, y,
+    vx:0, vy:0,
+    hp: Math.floor(s.hp * hpMult), maxHp: Math.floor(s.hp * hpMult),
+    speed:s.speed, dmg: Math.floor(s.dmg * dmgMult), color:s.color, radius:s.radius, drop:s.drop,
+    alive:true,
+    roam:Math.random() * Math.PI * 2,
+    atkCd:0,
+    pain:0,
+    ranged:s.ranged || false,
+  });
+}
+
+function spawnWorldEnemies() {
+  if (!running || gameState !== "play") return;
+  const night = world.dayTime < 0.23 || world.dayTime > 0.78;
+  let desired = night ? 14 : 8;
+  
+  if (player.dimension === "stonecity") {
+    desired = Math.ceil(desired * 1.8);
+  }
+  
+  if (enemies.length > desired) return;
+
+  const angle = Math.random() * Math.PI * 2;
+  const distAway = 520 + Math.random() * 780;
+  const x = Math.floor((player.x + Math.cos(angle) * distAway) / TILE) * TILE + TILE / 2;
+  const y = Math.floor((player.y + Math.sin(angle) * distAway) / TILE) * TILE + TILE / 2;
+  if (isBlocked(Math.floor(x / TILE), Math.floor(y / TILE))) return;
+
+  if (player.dimension === "stonecity") {
+    const r = Math.random();
+    const type = r > 0.6 ? "mage" : r > 0.3 ? "archer" : "golem";
+    spawnEnemy(type, x, y);
+  } else {
+    const biome = getBiome(x, y);
+    const r = Math.random();
+    let type = "slime";
+    if (night && biome === "ash") type = r > 0.5 ? "wraith" : "golem";
+    else if (biome === "forest") type = r > 0.6 ? "wolf" : r > 0.3 ? "archer" : "slime";
+    else if (biome === "snow") type = r > 0.4 ? "wolf" : "golem";
+    else if (biome === "ash") type = r > 0.65 ? "wraith" : r > 0.3 ? "mage" : "goblin";
+    else if (biome === "swamp") type = r > 0.6 ? "goblin" : r > 0.3 ? "archer" : "slime";
+    else type = r > 0.55 ? "goblin" : r > 0.3 ? "archer" : "slime";
+
+    spawnEnemy(type, x, y);
+  }
+}
+
+function attackMelee() {
+  if (player.attackCd > 0 || player.stamina < 8) return false;
+  player.attackCd = 22;
+  player.stamina = Math.max(0, player.stamina - 8);
+  player.swing = 12;
+
+  const weaponData = {
+    spear:{ dmg:18, range:62, arc:0.55, knock:11 },
+    bow:{ dmg:16, range:150, arc:0.18, knock:6 },
+    wand:{ dmg:8, range:72, arc:0.2, knock:6 },
+    axe:{ dmg:14, range:48, arc:0.75, knock:9 },
+    pickaxe:{ dmg:10, range:46, arc:0.7, knock:8 },
+    sword:{ dmg:22, range:54, arc:0.8, knock:10 },
+  }[player.equipment.weapon] || { dmg:10, range:50, arc:0.7, knock:8 };
+
+  const ang = player.facing;
+  let hit = 0;
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const dx = e.x - player.x;
+    const dy = e.y - player.y;
+    const d = Math.hypot(dx, dy);
+    if (d > weaponData.range + e.radius) continue;
+    const a = Math.atan2(dy, dx);
+    const delta = Math.atan2(Math.sin(a - ang), Math.cos(a - ang));
+    if (Math.abs(delta) > weaponData.arc) continue;
+    e.hp -= weaponData.dmg;
+    e.pain = 10;
+    e.vx += Math.cos(ang) * weaponData.knock;
+    e.vy += Math.sin(ang) * weaponData.knock;
+    hit++;
+    spawnParticles(e.x, e.y, 10, "#ffd166");
+    if (e.hp <= 0) killEnemy(e);
+  }
+  if (!hit) spawnParticles(player.x + Math.cos(ang) * 26, player.y + Math.sin(ang) * 26, 4, "#9eefff");
+  return true;
+}
+
+function killEnemy(e) {
+  e.alive = false;
+  spawnParticles(e.x, e.y, 18, e.color);
+  if (e.drop) {
+    const count = 1 + Math.floor(Math.random() * 2);
+    spawnDrop(e.drop, count, e.x, e.y);
+  }
+  if (Math.random() < 0.15) spawnDrop("fiber", 1, e.x + 8, e.y - 4);
+  if (Math.random() < 0.07) spawnDrop("herb", 1, e.x - 5, e.y + 6);
+  player.xp += 5;
+  if (player.xp >= player.level * 20) {
+    player.xp = 0;
+    player.level += 1;
+    player.maxHealth += 6;
+    player.maxStamina += 4;
+    player.maxMana += 4;
+    player.health = player.maxHealth;
+    toast(`Level up! You are now level ${player.level}.`);
+  }
+}
+
+function fireProjectile(kind) {
+  if (kind === "firebolt") {
+    if (player.mana < 12) { toast("Not enough mana."); return false; }
+    player.mana -= 12;
+    projectiles.push({
+      kind,
+      x: player.x + Math.cos(player.facing) * 20,
+      y: player.y + Math.sin(player.facing) * 20,
+      vx: Math.cos(player.facing) * 8,
+      vy: Math.sin(player.facing) * 8,
+      dmg: 20,
+      ttl: 120,
+      radius: 6,
+    });
+    return true;
+  }
+  if (kind === "heal") {
+    if (player.mana < 18) { toast("Not enough mana."); return false; }
+    player.mana -= 18;
+    player.health = Math.min(player.maxHealth, player.health + 26);
+    spawnParticles(player.x, player.y - 16, 18, "#7dffcf");
+    toast("A healing pulse warms the air.");
+    return true;
+  }
+  return false;
+}
+
+function useSelectedItem() {
+  const slot = player.hotbar[player.selected];
+  if (!slot) return;
+
+  if (foodSet.has(slot) && player.inventory[slot] > 0) {
+    player.inventory[slot]--;
+    player.health = Math.min(player.maxHealth, player.health + 18);
+    player.hunger = Math.min(player.maxHunger, player.hunger + 32);
+    spawnParticles(player.x, player.y, 10, "#9dda84");
+    toast(`You ate ${itemDefs[slot]?.name || slot}.`);
+    renderInventory();
+    updateHotbar();
+    return;
+  }
+
+  if (slot === "bandage" && player.inventory.bandage > 0) {
+    player.inventory.bandage--;
+    player.health = Math.min(player.maxHealth, player.health + 24);
+    player.stamina = Math.min(player.maxStamina, player.stamina + 8);
+    spawnParticles(player.x, player.y, 16, "#c1ffdc");
+    toast("You used a bandage.");
+    renderInventory();
+    updateHotbar();
+    return;
+  }
+
+  if (slot === "potion" && player.inventory.potion > 0) {
+    player.inventory.potion--;
+    player.health = Math.min(player.maxHealth, player.health + 30);
+    player.mana = Math.min(player.maxMana, player.mana + 22);
+    toast("You drank a potion.");
+    renderInventory();
+    updateHotbar();
+    return;
+  }
+
+  if (slot === "wand") {
+    fireProjectile("firebolt");
+    return;
+  }
+
+  attackMelee();
+}
+
+function placeStructure(type, tx, ty) {
+  const k = keyOf(tx, ty);
+  if (worldMods.has(k)) return false;
+  const tile = getTileBase(tx, ty);
+  if (tile.type === "water") return false;
+
+  if (!buildableSet.has(type)) return false;
+  if ((player.inventory[type] || 0) <= 0) return false;
+
+  player.inventory[type] -= 1;
+  worldMods.set(k, { kind:"built", type, hp:100, opened:false });
+  spawnParticles(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 10, "#ffd166");
+  renderInventory();
+  updateHotbar();
+  return true;
+}
+
+function harvestBuiltStructure(tx, ty) {
+  const k = keyOf(tx, ty);
+  const cell = worldMods.get(k);
+  if (!cell || cell.kind !== "built") return false;
+  
+  const structType = cell.type;
+  addItem(structType, 1);
+  worldMods.delete(k);
+  spawnParticles(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 12, "#a0a8b6");
+  renderInventory();
+  updateHotbar();
+  toast(`Harvested ${itemDefs[structType]?.name || structType}.`);
+  return true;
+}
+
+function harvestResource(tx, ty, tile) {
+  const k = keyOf(tx, ty);
+  const mod = getCellState(tx, ty);
+  if (mod && mod.kind === "built") return;
+  if (mod && mod.kind === "removed") return;
+
+  const res = tile.resource;
+  if (!res) return;
+
+  const needAxe = res === "tree" || res === "pine" || res === "reed";
+  const needPick = res === "rock" || res === "crystal" || res === "ruin" || res === "crystalDark" || res === "oreDark";
+
+  if (needAxe && player.equipment.tool !== "axe") {
+    toast("You need an axe.");
+    return;
+  }
+  if (needPick && player.equipment.tool !== "pickaxe") {
+    toast("You need a pickaxe.");
+    return;
+  }
+
+  const yieldTable = {
+    tree:{ wood:2, fiber:1 },
+    pine:{ wood:3, fiber:1 },
+    rock:{ stone:2, ore:1 },
+    crystal:{ crystal:2 },
+    crystalDark:{ crystal:3, ore:1 },
+    oreDark:{ ore:3, crystal:1 },
+    herb:{ herb:2 },
+    berry:{ berry:2 },
+    reed:{ fiber:2 },
+    ruin:{ stone:1, crystal:1 },
+  }[res];
+
+  if (!yieldTable) return;
+  for (const [id, n] of Object.entries(yieldTable)) addItem(id, n);
+  worldMods.set(k, { kind:"removed", type:res });
+  spawnParticles(tx * TILE + TILE / 2, ty * TILE + TILE / 2, 12, res === "crystal" || res === "crystalDark" ? "#8fd9ff" : res === "oreDark" ? "#d4a574" : "#9dda84");
+  addLoot(res, tx, ty);
+  renderInventory();
+  updateHotbar();
+  toast(`Collected ${itemDefs[Object.keys(yieldTable)[0]]?.name || res}.`);
+}
+
+function interactAtWorld(wx, wy) {
+  const tx = Math.floor(wx / TILE);
+  const ty = Math.floor(wy / TILE);
+  const cell = getCellState(tx, ty);
+  const tile = getTileBase(tx, ty);
+  const cx = tx * TILE + TILE / 2;
+  const cy = ty * TILE + TILE / 2;
+  const d = dist(player.x, player.y, cx, cy);
+  const inRange = d < 60;
+
+  if (player.buildMode) {
+    if (inRange && placeStructure(player.buildId, tx, ty)) {
+      toast(`${itemDefs[player.buildId]?.name || player.buildId} placed.`);
+    } else {
+      toast("Cannot place there.");
+    }
+    return;
+  }
+
+  if (cell && cell.kind === "portal") {
+    if (!inRange) return;
+    player.dimension = player.dimension === "stonecity" ? "realm" : "stonecity";
+    player.x = 0;
+    player.y = 0;
+    enemies.length = 0;
+    dropped.length = 0;
+    projectiles.length = 0;
+    toast(player.dimension === "stonecity" ? "You enter the Stone City!" : "You return to the realm.");
+    return;
+  }
+
+  if (cell && cell.kind === "built") {
+    if (!inRange) return;
+    if (cell.type === "campfire") {
+      player.health = Math.min(player.maxHealth, player.health + 2);
+      player.hunger = Math.min(player.maxHunger, player.hunger + 1);
+      player.mana = Math.min(player.maxMana, player.mana + 1);
+      toast("Warmth restores you.");
+      return;
+    }
+    if (cell.type === "altar") {
+      fireProjectile("heal");
+      return;
+    }
+    if (cell.type === "chest") {
+      toast("Chest is built. Add storage logic later if you want it.");
+      return;
+    }
+  }
+
+  if (!inRange) return;
+
+  if (tile.resource) {
+    harvestResource(tx, ty, tile);
+    return;
+  }
+
+  if (tile.type === "grass" || tile.type === "forest" || tile.type === "plains") {
+    if (Math.random() < 0.08) addItem("berry", 1);
+    if (Math.random() < 0.16) addItem("fiber", 1);
+    toast("You search the ground.");
+    spawnParticles(wx, wy, 6, "#97d58f");
+  }
+}
+
+function sleepAtCampfire() {
+  const tx = Math.floor(player.x / TILE);
+  const ty = Math.floor(player.y / TILE);
+  for (let y = ty - 1; y <= ty + 1; y++) {
+    for (let x = tx - 1; x <= tx + 1; x++) {
+      const c = worldMods.get(keyOf(x, y));
+      if (c && c.kind === "built" && c.type === "campfire") {
+        player.health = Math.min(player.maxHealth, player.health + 18);
+        player.hunger = Math.min(player.maxHunger, player.hunger + 8);
+        player.stamina = Math.min(player.maxStamina, player.stamina + 28);
+        player.mana = Math.min(player.maxMana, player.mana + 16);
+        world.dayTime = 0.16;
+        world.day += 1;
+        toast("You rest by the campfire.");
+        spawnParticles(player.x, player.y, 24, "#ffd166");
+        return true;
+      }
+    }
+  }
+  toast("Need a campfire nearby.");
+  return false;
+}
+
+function getNightLevel() {
+  const t = world.dayTime;
+  if (t > 0.23 && t < 0.78) return 0;
+  if (t < 0.12 || t > 0.88) return 1;
+  return t < 0.23 ? (0.23 - t) / 0.11 : (t - 0.78) / 0.10;
+}
+
+function shade(hex, amt) {
+  const n = hex.replace("#", "");
+  const r = parseInt(n.slice(0,2), 16);
+  const g = parseInt(n.slice(2,4), 16);
+  const b = parseInt(n.slice(4,6), 16);
+  return `rgb(${clamp(r + amt,0,255)},${clamp(g + amt,0,255)},${clamp(b + amt,0,255)})`;
+}
+
+function drawTile(tx, ty) {
+  const x = tx * TILE - player.x + W / 2;
+  const y = ty * TILE - player.y + H / 2;
+  const tile = getTileBase(tx, ty);
+  const col = tileTypes[tile.type] || tileTypes.grass;
+  let base = col.color;
+  let top = col.top;
+  const v = hash2(tx, ty, world.seed);
+  if (v > 0.82) base = shade(base, 8);
+  if (v < 0.18) base = shade(base, -7);
+
+  ctx.fillStyle = base;
+  ctx.fillRect(x, y, TILE, TILE);
+  ctx.fillStyle = top;
+  ctx.fillRect(x + 2, y + 2, TILE - 4, TILE - 4);
+
+  if (tile.type === "water") {
+    ctx.fillStyle = "rgba(255,255,255,.05)";
+    ctx.fillRect(x + 6, y + 10, TILE - 12, 3);
+  }
+
+  const mod = worldMods.get(keyOf(tx, ty));
+  if (mod && mod.kind === "removed") {
+    ctx.fillStyle = "rgba(0,0,0,.15)";
+    ctx.fillRect(x, y, TILE, TILE);
+  }
+
+  if (tile.resource && (!mod || mod.kind !== "removed")) drawResource(tile.resource, x, y);
+}
+
+function drawResource(res, x, y) {
+  const cx = x + TILE / 2;
+  const cy = y + TILE / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  if (res === "tree" || res === "pine") {
+    ctx.fillStyle = res === "pine" ? "#2d6d3c" : "#377b47";
+    ctx.beginPath();
+    ctx.moveTo(0, -16); ctx.lineTo(-11, 10); ctx.lineTo(11, 10); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#7a4e2c";
+    ctx.fillRect(-3, 10, 6, 12);
+  } else if (res === "rock" || res === "ruin") {
+    ctx.fillStyle = res === "ruin" ? "#9198a6" : "#7e8794";
+    ctx.beginPath();
+    ctx.moveTo(-12, 6); ctx.lineTo(-6, -8); ctx.lineTo(10, -10); ctx.lineTo(14, 6); ctx.lineTo(2, 14); ctx.closePath();
+    ctx.fill();
+  } else if (res === "crystal") {
+    ctx.fillStyle = "rgba(111,227,255,.8)";
+    ctx.beginPath();
+    ctx.moveTo(0, -14); ctx.lineTo(-7, 0); ctx.lineTo(0, 14); ctx.lineTo(7, 0); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.45)";
+    ctx.fillRect(-2, -10, 4, 20);
+  } else if (res === "crystalDark") {
+    ctx.fillStyle = "rgba(200,150,255,.9)";
+    ctx.beginPath();
+    ctx.moveTo(0, -14); ctx.lineTo(-7, 0); ctx.lineTo(0, 14); ctx.lineTo(7, 0); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,220,255,.45)";
+    ctx.fillRect(-2, -10, 4, 20);
+  } else if (res === "oreDark") {
+    ctx.fillStyle = "#7a5533";
+    ctx.beginPath();
+    ctx.moveTo(-12, 6); ctx.lineTo(-6, -8); ctx.lineTo(10, -10); ctx.lineTo(14, 6); ctx.lineTo(2, 14); ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#a87d3e";
+    ctx.fillRect(-4, -2, 8, 4);
+  } else if (res === "herb") {
+    ctx.strokeStyle = "#78d08a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-3, 13); ctx.lineTo(-2, 0); ctx.lineTo(-8, -7);
+    ctx.moveTo(1, 14); ctx.lineTo(2, -1); ctx.lineTo(7, -9);
+    ctx.stroke();
+  } else if (res === "berry") {
+    ctx.fillStyle = "#77c95f";
+    ctx.fillRect(-1, -8, 2, 16);
+    ctx.fillStyle = "#9b3cff";
+    ctx.beginPath(); ctx.arc(-5, -2, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, -5, 4, 0, Math.PI * 2); ctx.fill();
+  } else if (res === "reed") {
+    ctx.strokeStyle = "#93c98f";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-2, 14); ctx.lineTo(-6, -10);
+    ctx.moveTo(2, 14); ctx.lineTo(6, -8);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawBuilt(type, x, y) {
+  ctx.save();
+  ctx.translate(x + TILE / 2, y + TILE / 2);
+
+  if (type === "wall") {
+    ctx.fillStyle = "#8b6b47";
+    ctx.fillRect(-13, -15, 26, 30);
+    ctx.strokeStyle = "rgba(0,0,0,.25)";
+    ctx.strokeRect(-13, -15, 26, 30);
+    ctx.fillStyle = "rgba(255,255,255,.08)";
+    for (let i = -10; i <= 6; i += 8) ctx.fillRect(i, -13, 4, 26);
+  } else if (type === "campfire") {
+    ctx.fillStyle = "#4b3420";
+    ctx.beginPath(); ctx.arc(0, 6, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#d18c45";
+    ctx.fillRect(-6, 3, 12, 4);
+    ctx.fillStyle = "#ffcb5c";
+    ctx.beginPath(); ctx.arc(0, -2, 9, 0, Math.PI * 2); ctx.fill();
+  } else if (type === "altar") {
+    ctx.fillStyle = "#6e707e";
+    ctx.fillRect(-13, 6, 26, 8);
+    ctx.fillRect(-9, -12, 18, 18);
+    ctx.strokeStyle = "rgba(111,227,255,.7)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -2, 11, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "#8fd9ff";
+    ctx.fillRect(-2, -9, 4, 18);
+  } else if (type === "chest") {
+    ctx.fillStyle = "#8a5b2a";
+    ctx.fillRect(-12, -6, 24, 16);
+    ctx.fillStyle = "#5a3718";
+    ctx.fillRect(-12, 2, 24, 8);
+    ctx.fillStyle = "#d7bf86";
+    ctx.fillRect(-2, 0, 4, 4);
+  } else if (type === "floor") {
+    ctx.fillStyle = "#715f46";
+    ctx.fillRect(-15, -15, 30, 30);
+    ctx.strokeStyle = "rgba(0,0,0,.2)";
+    ctx.strokeRect(-15, -15, 30, 30);
+  } else if (type === "torch") {
+    ctx.fillStyle = "#6c4b2c";
+    ctx.fillRect(-2, -12, 4, 24);
+    ctx.fillStyle = "#ffba45";
+    ctx.beginPath();
+    ctx.arc(0, -12, 8, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (type === "portal") {
+    ctx.fillStyle = "rgba(100, 200, 255, 0.3)";
+    ctx.beginPath();
+    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(100, 200, 255, 0.8)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, 12, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawDropped() {
+  for (const d of dropped) {
+    const s = worldToScreen(d.x, d.y);
+    if (s.x < -40 || s.y < -40 || s.x > W + 40 || s.y > H + 40) continue;
+    const def = itemDefs[d.id] || { icon:"■" };
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.font = "18px system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#fff";
+    ctx.fillText(def.icon, 0, 0);
+    ctx.restore();
+  }
+}
+
+function drawEnemies() {
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const s = worldToScreen(e.x, e.y);
+    const r = e.radius;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.fillStyle = e.color;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,.22)";
+    ctx.beginPath();
+    ctx.arc(-4, -4, r * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    
+    if (e.ranged) {
+      ctx.strokeStyle = "rgba(200,150,100,.6)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0, 0, r + 4, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    
+    if (e.type === "golem") {
+      ctx.fillStyle = "rgba(0,0,0,.18)";
+      ctx.fillRect(-r, -2, r * 2, 4);
+    }
+    ctx.restore();
+
+    const hpw = 34;
+    const t = e.hp / e.maxHp;
+    ctx.fillStyle = "rgba(0,0,0,.45)";
+    ctx.fillRect(s.x - hpw / 2, s.y - r - 13, hpw, 5);
+    ctx.fillStyle = t > 0.5 ? "#84ff7b" : (t > 0.25 ? "#ffd166" : "#ff6b6b");
+    ctx.fillRect(s.x - hpw / 2, s.y - r - 13, hpw * t, 5);
+  }
+}
+
+function drawProjectiles() {
+  for (const p of projectiles) {
+    const s = worldToScreen(p.x, p.y);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    if (p.kind === "firebolt" || p.kind === "enemyshot") {
+      ctx.fillStyle = p.kind === "enemyshot" ? "#ff6b5b" : "#ff9a3c";
+      ctx.beginPath(); ctx.arc(0, 0, p.radius, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,230,150,.7)";
+      ctx.beginPath(); ctx.arc(0, 0, p.radius * 0.45, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawParticles() {
+  for (const p of particles) {
+    const s = worldToScreen(p.x, p.y);
+    ctx.globalAlpha = clamp(p.life / 30, 0, 1);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(s.x, s.y, p.size, p.size);
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawPlayer() {
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+
+  ctx.fillStyle = "rgba(0,0,0,.28)";
+  ctx.beginPath();
+  ctx.ellipse(0, 14, 13, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#edf7ff";
+  ctx.beginPath();
+  ctx.arc(0, 0, 11, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#7e8ca4";
+  ctx.beginPath();
+  ctx.arc(0, 3, 13, Math.PI * 1.15, Math.PI * 1.85);
+  ctx.lineTo(10, 16);
+  ctx.lineTo(-10, 16);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = "#1d2835";
+  ctx.fillRect(-4, -2, 2, 2);
+  ctx.fillRect(2, -2, 2, 2);
+
+  ctx.strokeStyle = "rgba(111,227,255,.6)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(Math.cos(player.facing) * 18, Math.sin(player.facing) * 18);
+  ctx.stroke();
+
+  if (player.swing > 0) {
+    const a = player.facing;
+    ctx.strokeStyle = "rgba(255,211,106,.8)";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, 20, a - 0.8, a + 0.6);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawLighting() {
+  const night = getNightLevel();
+  if (night <= 0) return;
+
+  const grd = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, Math.max(W, H) * 0.7);
+  grd.addColorStop(0, `rgba(0,0,0,${night * 0.12})`);
+  grd.addColorStop(1, `rgba(0,0,0,${0.52 + night * 0.42})`);
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, W, H);
+
+  for (const [k, cell] of worldMods.entries()) {
+    if (!cell || cell.kind !== "built") continue;
+    if (cell.type === "campfire" || cell.type === "torch" || cell.type === "altar") {
+      const [tx, ty] = k.split(",").map(Number);
+      const cx = tx * TILE - player.x + W / 2 + TILE / 2;
+      const cy = ty * TILE - player.y + H / 2 + TILE / 2;
+      const rg = ctx.createRadialGradient(cx, cy, 8, cx, cy, 150);
+      rg.addColorStop(0, cell.type === "altar" ? "rgba(111,227,255,.30)" : "rgba(255,202,93,.30)");
+      rg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = rg;
+      ctx.fillRect(cx - 150, cy - 150, 300, 300);
+    }
+  }
+}
+
+function drawFx() {
+  ctx.strokeStyle = "rgba(255,255,255,.06)";
+  ctx.beginPath();
+  ctx.arc(W/2, H/2, 80, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+function drawWorld() {
+  ctx.clearRect(0, 0, W, H);
+
+  const left = Math.floor((player.x - W / 2) / TILE) - VIEW_PAD;
+  const top = Math.floor((player.y - H / 2) / TILE) - VIEW_PAD;
+  const right = Math.floor((player.x + W / 2) / TILE) + VIEW_PAD;
+  const bottom = Math.floor((player.y + H / 2) / TILE) + VIEW_PAD;
+
+  for (let ty = top; ty <= bottom; ty++) {
+    for (let tx = left; tx <= right; tx++) drawTile(tx, ty);
+  }
+
+  drawDropped();
+
+  for (const [k, cell] of worldMods.entries()) {
+    if (!cell) continue;
+    if (cell.kind === "portal" || cell.kind === "built") {
+      const [tx, ty] = k.split(",").map(Number);
+      const x = tx * TILE - player.x + W / 2;
+      const y = ty * TILE - player.y + H / 2;
+      drawBuilt(cell.type, x, y);
+    }
+  }
+
+  drawProjectiles();
+  drawEnemies();
+  drawPlayer();
+  drawParticles();
+  drawLighting();
+  drawFx();
+}
+
+function drawMiniMap() {
+  mapCtx.clearRect(0, 0, 164, 164);
+  const scale = 4;
+  const span = 20;
+  const px = Math.floor(player.x / TILE);
+  const py = Math.floor(player.y / TILE);
+
+  for (let y = -span; y <= span; y++) {
+    for (let x = -span; x <= span; x++) {
+      const tx = px + x;
+      const ty = py + y;
+      const tile = getTileBase(tx, ty);
+      let c = "#355c3f";
+      if (tile.type === "water") c = "#1d4d77";
+      else if (tile.type === "sand") c = "#9b854f";
+      else if (tile.type === "snow") c = "#dceaf5";
+      else if (tile.type === "swamp") c = "#364c3c";
+      else if (tile.type === "ash") c = "#4f3d4a";
+      else if (tile.type === "darkstone") c = "#2a2f3a";
+      else if (tile.type === "road") c = "#7a6b57";
+      mapCtx.fillStyle = c;
+      mapCtx.fillRect((x + span) * scale, (y + span) * scale, scale, scale);
+    }
+  }
+
+  mapCtx.fillStyle = "#ffdf7a";
+  mapCtx.fillRect(span * scale, span * scale, scale, scale);
+
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const ex = Math.floor((e.x / TILE - px) + span);
+    const ey = Math.floor((e.y / TILE - py) + span);
+    if (ex >= 0 && ey >= 0 && ex < 41 && ey < 41) {
+      mapCtx.fillStyle = "#ff6b6b";
+      mapCtx.fillRect(ex * scale, ey * scale, scale, scale);
+    }
+  }
+
+  for (const [k, cell] of worldMods.entries()) {
+    if (!cell) continue;
+    if (cell.kind === "portal" || cell.kind === "built") {
+      const [tx, ty] = k.split(",").map(Number);
+      const ex = Math.floor((tx - px) + span);
+      const ey = Math.floor((ty - py) + span);
+      if (ex >= 0 && ey >= 0 && ex < 41 && ey < 41) {
+        if (cell.kind === "portal") mapCtx.fillStyle = "#64c8ff";
+        else if (cell.type === "campfire") mapCtx.fillStyle = "#ffb347";
+        else if (cell.type === "altar") mapCtx.fillStyle = "#8fd9ff";
+        else mapCtx.fillStyle = "#b48a62";
+        mapCtx.fillRect(ex * scale, ey * scale, scale, scale);
+      }
+    }
+  }
+}
+
+function updateDayNight(dt) {
+  world.dayTime += dt * 0.0042;
+  if (world.dayTime >= 1) {
+    world.dayTime -= 1;
+    world.day += 1;
+    toast(`Day ${world.day}`);
+    spawnParticles(player.x, player.y, 12, "#9bd7ff");
+  }
+}
+
+function updatePlayer(dt) {
+  const left = keys["a"] || keys["arrowleft"];
+  const right = keys["d"] || keys["arrowright"];
+  const up = keys["w"] || keys["arrowup"];
+  const down = keys["s"] || keys["arrowdown"];
+  const sprint = keys["shift"] && player.stamina > 0 && !player.buildMode;
+
+  let spd = sprint ? player.sprint : player.speed;
+  const dx = (right ? 1 : 0) - (left ? 1 : 0);
+  const dy = (down ? 1 : 0) - (up ? 1 : 0);
+
+  if (dx || dy) {
+    const len = Math.hypot(dx, dy) || 1;
+    movePlayer(dx / len * spd, dy / len * spd);
+    player.facing = Math.atan2(dy, dx);
+    if (sprint) player.stamina = Math.max(0, player.stamina - 0.55);
+  } else {
+    player.stamina = Math.min(player.maxStamina, player.stamina + 0.28);
+  }
+
+  if (player.attackCd > 0) player.attackCd--;
+  if (player.swing > 0) player.swing--;
+
+  player.hunger -= 0.0018 * dt * 60;
+  if (player.hunger < 0) player.hunger = 0;
+  if (player.hunger === 0) player.health -= 0.02 * dt * 60;
+
+  player.mana = clamp(player.mana + (0.012 * dt * 60), 0, player.maxMana);
+  if (player.hunger > 0 && player.health < player.maxHealth && frame % 180 === 0) {
+    player.health = Math.min(player.maxHealth, player.health + 1);
+  }
+
+  if (player.health <= 0) {
+    player.health = 0;
+    die();
+  }
+}
+
+function updateDropped(dt) {
+  for (let i = dropped.length - 1; i >= 0; i--) {
+    const d = dropped[i];
+    d.age += dt * 60;
+    d.x += d.vx * dt * 60;
+    d.y += d.vy * dt * 60;
+    d.vx *= 0.96;
+    d.vy *= 0.96;
+    if (dist(d.x, d.y, player.x, player.y) < 24) {
+      addItem(d.id, d.amount);
+      dropped.splice(i, 1);
+      toast(`+${d.amount} ${itemDefs[d.id]?.name || d.id}`);
+      renderInventory();
+      updateHotbar();
+      continue;
+    }
+    if (d.age > d.ttl) dropped.splice(i, 1);
+  }
+}
+
+function updateProjectiles(dt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.ttl--;
+    if (p.ttl <= 0) {
+      projectiles.splice(i, 1);
+      continue;
+    }
+    if (isBlocked(Math.floor(p.x / TILE), Math.floor(p.y / TILE)) && getTileBase(Math.floor(p.x / TILE), Math.floor(p.y / TILE)).type === "water") {
+      projectiles.splice(i, 1);
+      spawnParticles(p.x, p.y, 8, "#ffb347");
+      continue;
+    }
+    
+    if (p.kind === "enemyshot") {
+      if (dist(p.x, p.y, player.x, player.y) < player.r + p.radius) {
+        damagePlayer(p.dmg, "ranged attack");
+        projectiles.splice(i, 1);
+        spawnParticles(p.x, p.y, 10, "#ff6b5b");
+        continue;
+      }
+    }
+    
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      if (dist(p.x, p.y, e.x, e.y) < e.radius + p.radius) {
+        e.hp -= p.dmg;
+        e.pain = 12;
+        if (e.hp <= 0) killEnemy(e);
+        spawnParticles(p.x, p.y, 10, "#ffb347");
+        projectiles.splice(i, 1);
+        break;
+      }
+    }
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt * 60;
+    p.y += p.vy * dt * 60;
+    p.vy += 0.02 * dt * 60;
+    p.life -= dt * 60;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function fireEnemyProjectile(e) {
+  const angle = Math.atan2(player.y - e.y, player.x - e.x);
+  const dmg = e.type === "mage" ? 12 : 10;
+  projectiles.push({
+    kind: "enemyshot",
+    x: e.x + Math.cos(angle) * 12,
+    y: e.y + Math.sin(angle) * 12,
+    vx: Math.cos(angle) * 6,
+    vy: Math.sin(angle) * 6,
+    dmg: dmg,
+    ttl: 140,
+    radius: 5,
+  });
+}
+
+function updateEnemy(e, dt) {
+  if (!e.alive) return;
+  const d = dist(e.x, e.y, player.x, player.y);
+  const night = world.dayTime < 0.23 || world.dayTime > 0.78;
+  const aggro = d < (night ? 420 : 300);
+
+  if (e.atkCd > 0) e.atkCd -= dt * 60;
+  if (e.pain > 0) e.pain -= dt * 60;
+
+  if (aggro) {
+    const a = Math.atan2(player.y - e.y, player.x - e.x);
+    e.vx += Math.cos(a) * e.speed * 0.55;
+    e.vy += Math.sin(a) * e.speed * 0.55;
+  } else {
+    e.roam += dt * 0.9;
+    e.vx += Math.cos(e.roam) * 0.05;
+    e.vy += Math.sin(e.roam) * 0.05;
+  }
+
+  const len = Math.hypot(e.vx, e.vy);
+  const max = e.speed * (aggro ? 1.6 : 1.0);
+  if (len > max) {
+    e.vx = e.vx / len * max;
+    e.vy = e.vy / len * max;
+  }
+
+  const nextX = e.x + e.vx;
+  const nextY = e.y + e.vy;
+
+  if (!isBlocked(Math.floor(nextX / TILE), Math.floor(e.y / TILE))) e.x = nextX; else e.vx *= -0.2;
+  if (!isBlocked(Math.floor(e.x / TILE), Math.floor(nextY / TILE))) e.y = nextY; else e.vy *= -0.2;
+
+  e.vx *= 0.92;
+  e.vy *= 0.92;
+
+  if (e.ranged && d < 200 && aggro && e.atkCd <= 0) {
+    e.atkCd = 90;
+    fireEnemyProjectile(e);
+  } else if (!e.ranged && d < e.radius + player.r + 4 && e.atkCd <= 0) {
+    e.atkCd = 60;
+    damagePlayer(e.dmg, e.type);
+    const a = Math.atan2(player.y - e.y, player.x - e.x);
+    e.vx -= Math.cos(a) * 6;
+    e.vy -= Math.sin(a) * 6;
+  }
+}
+
+function updateEnemies(dt) {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (!e.alive || e.hp <= 0) {
+      enemies.splice(i, 1);
+      continue;
+    }
+    updateEnemy(e, dt);
+  }
+}
+
+function updateFX(dt) {
+  if (toastTimer > 0) {
+    toastTimer -= dt * 1000;
+    if (toastTimer <= 0) ui.toast.classList.remove("show");
+  }
+}
+
+function updateHUD() {
+  ui.healthFill.style.width = `${(player.health / player.maxHealth) * 100}%`;
+  ui.hungerFill.style.width = `${(player.hunger / player.maxHunger) * 100}%`;
+  ui.staminaFill.style.width = `${(player.stamina / player.maxStamina) * 100}%`;
+  ui.manaFill.style.width = `${(player.mana / player.maxMana) * 100}%`;
+
+  ui.zoneChip.textContent = getZoneName(Math.floor(player.x), Math.floor(player.y));
+  const cycle = world.dayTime;
+  let label = "Night";
+  if (cycle > 0.23 && cycle < 0.38) label = "Morning";
+  else if (cycle >= 0.38 && cycle < 0.62) label = "Day";
+  else if (cycle >= 0.62 && cycle < 0.78) label = "Evening";
+  ui.timeChip.textContent = `Day ${world.day} • ${label}`;
+  ui.coordsChip.textContent = `${Math.floor(player.x / TILE)}, ${Math.floor(player.y / TILE)}`;
+  ui.dimensionChip.textContent = player.dimension === "stonecity" ? "🌀 Stone City" : "🌍 Realm";
+
+  if (player.buildMode) {
+    ui.modeChip.textContent = `Build: ${itemDefs[player.buildId]?.name || player.buildId}`;
+  } else {
+    const slot = player.hotbar[player.selected];
+    ui.modeChip.textContent = `Use: ${itemDefs[slot]?.name || slot}`;
+  }
+}
+
+function quickCast() {
+  if (player.equipment.spell === "firebolt" && player.hotbar[player.selected] === "wand") {
+    fireProjectile("firebolt");
+    return;
+  }
+  if (consumableSet.has(player.hotbar[player.selected])) {
+    useSelectedItem();
+    return;
+  }
+  if (player.equipment.spell === "firebolt") fireProjectile("firebolt");
+}
+
+function toggleBuild() {
+  player.buildMode = !player.buildMode;
+  toast(player.buildMode ? `Build mode: ${itemDefs[player.buildId]?.name || player.buildId}.` : "Build mode off.");
+  updateHotbar();
+  updateTooltip();
+}
+
+function newGame() {
+  Object.assign(player, {
+    x:0, y:0,
+    r:12,
+    speed:2.2,
+    sprint:3.6,
+    health:100, maxHealth:100,
+    hunger:100, maxHunger:100,
+    stamina:100, maxStamina:100,
+    mana:60, maxMana:60,
+    attackCd:0,
+    swing:0,
+    facing:0,
+    xp:0,
+    level:1,
+    buildMode:false,
+    buildId:"wall",
+    selected:0,
+    dimension:"realm",
+    equipment:{ weapon:"spear", tool:"axe", spell:"firebolt" },
+    inventory:{
+      wood:14, stone:10, fiber:8, herb:5, berry:6, meat:0, crystal:0, ore:0,
+      plank:0, rope:0, bandage:2, potion:0, arrow:12,
+      axe:1, pickaxe:1, spear:1, bow:0, wand:0,
+      torch:2, campfire:1, wall:0, floor:0, chest:0, altar:0,
+    },
+    hotbar:["axe","pickaxe","spear","bow","wand","torch","campfire","wall"],
+  });
+
+  world.dayTime = 0.14;
+  world.day = 1;
+  world.seed = SEED;
+  worldMods.clear();
+  world.villages.clear();
+  world.portals.clear();
+  enemies.length = 0;
+  dropped.length = 0;
+  projectiles.length = 0;
+  particles.length = 0;
+  gameState = "play";
+  running = true;
+  ui.menuPanel.classList.remove("open");
+  ui.gameOverPanel.classList.remove("open");
+  ui.helpPanel.classList.remove("open");
+  ui.inventoryPanel.classList.remove("open");
+  ui.craftPanel.classList.remove("open");
+  renderInventory();
+  renderCrafting();
+  updateHotbar();
+  updateTooltip();
+  toast("A new world unfolds.");
+  saveGame();
+}
+
+function handleAction(worldX, worldY) {
+  if (gameState !== "play") return;
+  
+  const tx = Math.floor(worldX / TILE);
+  const ty = Math.floor(worldY / TILE);
+  const tile = getTileBase(tx, ty);
+  const d = dist(player.x, player.y, tx * TILE + TILE/2, ty * TILE + TILE/2);
+
+  // Check if clicking on a built structure - destroy it
+  const cell = getCellState(tx, ty);
+  if (cell && cell.kind === "built" && d < 60) {
+    harvestBuiltStructure(tx, ty);
+    return;
+  }
+
+  if (player.buildMode) {
+    interactAtWorld(worldX, worldY);
+    return;
+  }
+
+  if (tile.resource && d < 70) {
+    interactAtWorld(worldX, worldY);
+    return;
+  }
+
+  const slot = player.hotbar[player.selected];
+  if (slot === "bow") {
+    const ang = Math.atan2(worldY - player.y, worldX - player.x);
+    if (player.inventory.arrow <= 0) { toast("No arrows."); return; }
+    player.inventory.arrow -= 1;
+    projectiles.push({
+      kind:"firebolt",
+      x: player.x + Math.cos(ang) * 20,
+      y: player.y + Math.sin(ang) * 20,
+      vx: Math.cos(ang) * 10,
+      vy: Math.sin(ang) * 10,
+      dmg: 16,
+      ttl: 100,
+      radius: 4,
+    });
+    updateHotbar();
+    renderInventory();
+    return;
+  }
+
+  if (slot === "wand") {
+    const ang = Math.atan2(worldY - player.y, worldX - player.x);
+    player.facing = ang;
+    fireProjectile("firebolt");
+    return;
+  }
+
+  const ang = Math.atan2(worldY - player.y, worldX - player.x);
+  player.facing = ang;
+
+  const nearestEnemy = enemies.find(en => en.alive && dist(en.x, en.y, worldX, worldY) < en.radius + 8);
+  if (nearestEnemy && dist(player.x, player.y, nearestEnemy.x, nearestEnemy.y) < 140) {
+    attackMelee();
+    return;
+  }
+
+  attackMelee();
+}
+
+function loop(now) {
+  const dt = Math.min(0.033, (now - last) / 1000);
+  last = now;
+  frame++;
+
+  if (running && gameState === "play") {
+    updateDayNight(dt);
+    updatePlayer(dt);
+    updateDropped(dt);
+    updateProjectiles(dt);
+    updateParticles(dt);
+    updateEnemies(dt);
+    updateFX(dt);
+    if (frame % 300 === 0) {
+      spawnWorldEnemies();
+      generateVillages();
+      generatePortals();
+    }
+    if (frame % 600 === 0) saveGame();
+  } else {
+    updateParticles(dt);
+    updateFX(dt);
+  }
+
+  drawWorld();
+  updateHUD();
+  drawMiniMap();
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+
+  if (k === "enter" && gameState === "menu") {
+    newGame();
+    return;
+  }
+
+  if (gameState !== "play") {
+    if (k === "escape") {
+      if (gameState === "inventory" || gameState === "craft" || gameState === "help") setMode("play");
+      else if (gameState === "pause") setMode("play");
+    }
+    return;
+  }
+
+  if (k >= "1" && k <= "8") {
+    player.selected = parseInt(k, 10) - 1;
+    applySelected();
+    updateHotbar();
+  }
+  if (k === "e") { e.preventDefault(); setMode(gameState === "inventory" ? "play" : "inventory"); renderInventory(); }
+  if (k === "c") { e.preventDefault(); setMode(gameState === "craft" ? "play" : "craft"); renderCrafting(); }
+  if (k === "b") { e.preventDefault(); toggleBuild(); }
+  if (k === "q") { e.preventDefault(); useSelectedItem(); }
+  if (k === "r") { e.preventDefault(); sleepAtCampfire(); }
+  if (k === "f") { e.preventDefault(); quickCast(); }
+  if (k === "tab") { e.preventDefault(); toggleBuild(); }
+  if (k === "escape") {
+    e.preventDefault();
+    if (gameState === "play") setMode("pause");
+    else if (gameState === "pause") setMode("play");
+  }
+});
+
+document.addEventListener("keyup", (e) => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  const w = screenToWorld(mouse.x, mouse.y);
+  mouse.worldX = w.x;
+  mouse.worldY = w.y;
+
+  const s = worldToScreen(w.x, w.y);
+  ui.reticle.style.display = "block";
+  ui.reticle.style.left = s.x + "px";
+  ui.reticle.style.top = s.y + "px";
+});
+
+canvas.addEventListener("mouseleave", () => {
+  ui.reticle.style.display = "none";
+});
+
+canvas.addEventListener("mousedown", (e) => {
+  if (gameState !== "play") return;
+  if (e.button === 0) {
+    handleAction(mouse.worldX, mouse.worldY);
+  }
+  if (e.button === 2) {
+    e.preventDefault();
+    if (player.buildMode) handleAction(mouse.worldX, mouse.worldY);
+  }
+});
+
+canvas.addEventListener("contextmenu", e => e.preventDefault());
+
+// TOUCH SUPPORT
+canvas.addEventListener("touchstart", (e) => {
+  if (gameState !== "play") return;
+  e.preventDefault();
+  const touch_event = e.touches[0];
+  const w = screenToWorld(touch_event.clientX, touch_event.clientY);
+  handleAction(w.x, w.y);
+});
+
+canvas.addEventListener("touchmove", (e) => {
+  if (gameState !== "play") return;
+  e.preventDefault();
+  const touch_event = e.touches[0];
+  const w = screenToWorld(touch_event.clientX, touch_event.clientY);
+  touch.x = touch_event.clientX;
+  touch.y = touch_event.clientY;
+  touch.worldX = w.x;
+  touch.worldY = w.y;
+
+  const s = worldToScreen(w.x, w.y);
+  ui.reticle.style.display = "block";
+  ui.reticle.style.left = s.x + "px";
+  ui.reticle.style.top = s.y + "px";
+});
+
+canvas.addEventListener("touchend", () => {
+  ui.reticle.style.display = "none";
+});
+
+document.getElementById("newGameBtn").addEventListener("click", newGame);
+document.getElementById("continueBtn").addEventListener("click", () => {
+  if (!loadGame()) {
+    toast("No save found. Starting a new world.");
+    newGame();
+    return;
+  }
+  ui.menuPanel.classList.remove("open");
+  gameState = "play";
+  running = true;
+  renderInventory();
+  renderCrafting();
+  updateHotbar();
+  updateTooltip();
+  toast("Continue loaded.");
+});
+document.getElementById("howBtn").addEventListener("click", () => ui.helpPanel.classList.add("open"));
+document.getElementById("wipeBtn").addEventListener("click", wipeSave);
+document.getElementById("closeInventoryBtn").addEventListener("click", () => setMode("play"));
+document.getElementById("closeCraftBtn").addEventListener("click", () => setMode("play"));
+document.getElementById("closeHelpBtn").addEventListener("click", () => setMode("play"));
+document.getElementById("respawnBtn").addEventListener("click", respawn);
+document.getElementById("backMenuBtn").addEventListener("click", openMenu);
+
+document.getElementById("inventoryPanel").addEventListener("click", e => {
+  if (e.target === ui.inventoryPanel) setMode("play");
+});
+document.getElementById("craftPanel").addEventListener("click", e => {
+  if (e.target === ui.craftPanel) setMode("play");
+});
+document.getElementById("helpPanel").addEventListener("click", e => {
+  if (e.target === ui.helpPanel) setMode("play");
+});
+document.getElementById("gameOverPanel").addEventListener("click", e => {
+  if (e.target === ui.gameOverPanel) {
+    ui.gameOverPanel.classList.remove("open");
+    openMenu();
+  }
+});
+
+window.addEventListener("beforeunload", saveGame);
+
+function init() {
+  resize();
+  renderInventory();
+  renderCrafting();
+  updateHotbar();
+  updateTooltip();
+  openMenu();
+  requestAnimationFrame(loop);
+}
+
+init();
+
+})();
+</script>
+</body>
+</html>
